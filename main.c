@@ -238,13 +238,15 @@
 #include <math.h>
 
 #define TIMER_FREQUENCY 3000000  // Assume SMCLK at 3MHz
-#define TIMER_LOAD_VALUE (TIMER_FREQUENCY / 48)  // 2-second delay
+#define TIMER_LOAD_VALUE (TIMER_FREQUENCY / 48)
+#define VERTEX_COUNT = 8
 //#define BUTTON1 0b00000010
-
+const int vertexCount = 8;
 
 //void initializeGraphics(Graphics_Context *g_sContext_p); //single buffer render
 void initializeGraphics(Graphics_Context *g_sContext_p);
 void addEdge(int vertexIndex1, int vertexIndex2);
+void defineEdges();
 void printEdge(int index);
 void printEdges();
 void getProjectedVertices();
@@ -252,11 +254,12 @@ void drawWireframe(Graphics_Context *g_sContext_p, bool eraseOld);
 void Timer32_2SecondDelay();
 void swapBuffers();
 void createRotationMatrixZ(float matrix[3][3], float theta);
-void rotateVertexTable(rotationMatrix, vertexTable);
+void rotateVertexTable(float rotationMatrix[3][3], float vertexTable[vertexCount][3]);
 void rotateCubeZ(float theta);
+void rotateAroundYX(float (*vertexTable)[3], float theta);
 //void initializeInputs();
 
-const int vertexCount = 8;
+
 float projectedVertices[vertexCount][2];
 float previousProjectedVertexTable[vertexCount][2] = {0};
 float vertexTable[8][3] = {
@@ -269,28 +272,10 @@ float vertexTable[8][3] = {
     {104, 104, 40}, // Vertex 6
     {24, 104, 40}  // Vertex 7
 };
-//signed int vertexTable[16][3] = {
-//        {1, 2, 3},   // Vertex 1
-//        {4, 5, 6},   // Vertex 2
-//        {7, 8, 9},   // Vertex 3
-//        {10, 11, 12},   // Vertex 4
-//        {0, 0, 0},   // Vertex 5
-//        {0, 0, 0},   // Vertex 6
-//        {0, 0, 0},   // Vertex 7
-//        {0, 0, 0},   // Vertex 8
-//        {0, 0, 0},   // Vertex 9
-//        {0, 0, 0},   // Vertex 10
-//        {0, 0, 0},   // Vertex 11
-//        {0, 0, 0},   // Vertex 12
-//        {0, 0, 0},   // Vertex 13
-//        {0, 0, 0},   // Vertex 14
-//        {0, 0, 0},   // Vertex 15
-//        {0, 0, 0}    // Vertex 16
-//};
 
 typedef struct {
-        int *p_vertex1;
-        int *p_vertex2;
+        float *p_vertex1;
+        float *p_vertex2;
 } Edge;
 
 Edge* edgeTable = NULL;
@@ -306,9 +291,6 @@ Graphics_Context buffer1, buffer2; // Two buffers for double buffering
 Graphics_Context *g_sCurrentContext = &buffer1; // Initially use buffer1
 Graphics_Context *g_sNextContext = &buffer2; // Use buffer2 as next buffer
 
-// Initialize both graphics contexts correctly
-     // Pass the pointer to buffer2
-
 /**
  * main.c
  */
@@ -320,19 +302,6 @@ int main(void) {
 //    Graphics_Context g_sContext; // Creates context
     initializeGraphics(g_sCurrentContext);  // Pass the pointer to buffer1
     initializeGraphics(g_sNextContext);
-
-    addEdge(0, 1); // Edge between Vertex 0 and Vertex 1
-    addEdge(1, 2); // Edge between Vertex 1 and Vertex 2
-    addEdge(2, 3); // Edge between Vertex 2 and Vertex 3
-    addEdge(3, 0); // Edge between Vertex 3 and Vertex 0
-    addEdge(4, 5); // Edge between Vertex 4 and Vertex 5
-    addEdge(5, 6); // Edge between Vertex 5 and Vertex 6
-    addEdge(6, 7); // Edge between Vertex 6 and Vertex 7
-    addEdge(7, 4); // Edge between Vertex 7 and Vertex 4
-    addEdge(0, 4); // Vertical Edge between Vertex 0 and Vertex 4
-    addEdge(1, 5); // Vertical Edge between Vertex 1 and Vertex 5
-    addEdge(2, 6); // Vertical Edge between Vertex 2 and Vertex 6
-    addEdge(3, 7); // Vertical Edge between Vertex 3 and Vertex 7
 
     unsigned char string2[25] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
@@ -366,7 +335,7 @@ int main(void) {
         // Rotate the vertex table
 //        rotateVertexTable(rotationMatrix, vertexTable);
 //         rotateCubeZ(M_PI / 30);
-        rotateAroundYX((&vertexTable), M_PI / 30);
+        rotateAroundYX(vertexTable, M_PI / 30);
 //        rotateAroundYX(vertexTable, M_PI / 6);
 //        focalLength += 10;
     }
@@ -604,8 +573,23 @@ void addEdge(int vertexIndex1, int vertexIndex2) {
     edgeCount++;
 }
 
+void defineEdges() {
+    addEdge(0, 1); // Edge between Vertex 0 and Vertex 1
+    addEdge(1, 2); // Edge between Vertex 1 and Vertex 2
+    addEdge(2, 3); // Edge between Vertex 2 and Vertex 3
+    addEdge(3, 0); // Edge between Vertex 3 and Vertex 0
+    addEdge(4, 5); // Edge between Vertex 4 and Vertex 5
+    addEdge(5, 6); // Edge between Vertex 5 and Vertex 6
+    addEdge(6, 7); // Edge between Vertex 6 and Vertex 7
+    addEdge(7, 4); // Edge between Vertex 7 and Vertex 4
+    addEdge(0, 4); // Vertical Edge between Vertex 0 and Vertex 4
+    addEdge(1, 5); // Vertical Edge between Vertex 1 and Vertex 5
+    addEdge(2, 6); // Vertical Edge between Vertex 2 and Vertex 6
+    addEdge(3, 7); // Vertical Edge between Vertex 3 and Vertex 7
+}
+
 void printEdge(int index) {
-    printf("Edge %d: Vertex 1 at (%d, %d, %d), Vertex 2 at (%d, %d, %d)\n",
+    printf("Edge %d: Vertex 1 at (%f, %f, %f), Vertex 2 at (%f, %f, %f)\n",
            index + 1,
            edgeTable[index].p_vertex1[0], edgeTable[index].p_vertex1[1], edgeTable[index].p_vertex1[2],
            edgeTable[index].p_vertex2[0], edgeTable[index].p_vertex2[1], edgeTable[index].p_vertex2[2]);
